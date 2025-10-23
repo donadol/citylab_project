@@ -23,6 +23,13 @@ class Patrol : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "Patrol node initialized");
     }
 
+    void stop_robot() {
+        auto stop_msg = geometry_msgs::msg::Twist();
+        // All velocities default to 0.0
+        cmd_vel_publisher_->publish(stop_msg);
+        RCLCPP_INFO(this->get_logger(), "Robot stopped - shutting down");
+    }
+
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         // We need front 180 degrees: from -π/2 to +π/2
@@ -95,10 +102,25 @@ class Patrol : public rclcpp::Node {
     float direction_;
 };
 
+// Global node pointer for signal handler
+std::shared_ptr<Patrol> patrol_node;
+
+// Signal handler for Ctrl+C
+void signal_handler(int signum) {
+    if (patrol_node) {
+        patrol_node->stop_robot();
+    }
+    rclcpp::shutdown();
+}
+
 int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<Patrol>();
-    rclcpp::spin(node);
+    patrol_node = std::make_shared<Patrol>();
+
+    // Register signal handler for Ctrl+C
+    signal(SIGINT, signal_handler);
+
+    rclcpp::spin(patrol_node);
     rclcpp::shutdown();
     return 0;
 }
