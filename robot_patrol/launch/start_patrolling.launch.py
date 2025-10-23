@@ -1,7 +1,5 @@
 import launch
 import launch_ros.actions
-from tracetools_launch.action import Trace
-
 
 def generate_launch_description():
     # Nodes
