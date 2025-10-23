@@ -33,7 +33,6 @@ class Patrol : public rclcpp::Node {
 
         float max_distance = 0.0;
         float safest_angle = 0.0;
-        bool found_valid = false;
         float min_front_distance = MIN_CLEARANCE + 0.1;  // Initialize above clearance
 
         for (size_t i = 0; i < msg->ranges.size(); ++i) {
@@ -52,12 +51,7 @@ class Patrol : public rclcpp::Node {
             }
 
             // Clamp to valid range
-            if (distance < msg->range_min) {
-                distance = msg->range_min;
-            }
-            if (distance > msg->range_max) {
-                distance = msg->range_max;
-            }
+            distance = std::max(msg->range_min, std::min(distance, msg->range_max));
 
             // Check distance directly in front (for obstacle detection)
             if (std::abs(angle) < CENTER_ANGLE_TOLERANCE) {
@@ -65,36 +59,25 @@ class Patrol : public rclcpp::Node {
             }
 
             // Only consider directions with at least 0.35m clearance
-            if (distance < MIN_CLEARANCE) {
-                continue;
-            }
-
-            // Find maximum distance direction
-            if (distance > max_distance) {
+            // Find safest (maximum distance) direction
+            if (distance > max_distance && distance >= MIN_CLEARANCE) {
                 max_distance = distance;
                 safest_angle = angle;
-                found_valid = true;
             }
         }
 
-        // Only change direction if obstacle detected in front
+        // Clear ahead - go straight!
         if (min_front_distance > MIN_CLEARANCE) {
-            // Clear ahead - go straight!
             direction_ = 0.0;
-        }
-
-        // Obstacle ahead! Turn toward safest direction
-        if (found_valid) {
-            direction_ = safest_angle;
-            RCLCPP_INFO(this->get_logger(),
-                        "Obstacle at %.2fm! Turning to angle: %.2f rad (%.1f deg)",
-                        min_front_distance, direction_, direction_ * 180.0 / M_PI);
+            RCLCPP_WARN(this->get_logger(), "Clear ahead!");
             return;
         }
 
-        // Emergency: no safe direction found at all
-        direction_ = 0.0;
-        RCLCPP_WARN(this->get_logger(), "No safe direction found!");
+        // Obstacle ahead! Turn toward safest direction
+        direction_ = safest_angle;
+        RCLCPP_INFO(this->get_logger(),
+                    "Obstacle at %.2fm! Turning to angle: %.2f rad (%.1f deg)",
+                    min_front_distance, direction_, direction_ * 180.0 / M_PI);
     }
 
     void control_loop() {
