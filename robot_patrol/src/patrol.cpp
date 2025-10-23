@@ -25,14 +25,16 @@ class Patrol : public rclcpp::Node {
 
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        float max_distance = 0.0;
-        float safest_angle = 0.0;
-        bool found_valid = false;
-
         // We need front 180 degrees: from -π/2 to +π/2
         const double FRONT_MIN_ANGLE = -M_PI / 2.0;  // -90 degrees
         const double FRONT_MAX_ANGLE = M_PI / 2.0;   // +90 degrees
         const double MIN_CLEARANCE = 0.35;           // 35 cm obstacle detection threshold
+        const double CENTER_ANGLE_TOLERANCE = 0.3;   // ~11 degrees - center front zone
+
+        float max_distance = 0.0;
+        float safest_angle = 0.0;
+        bool found_valid = false;
+        float min_front_distance = MIN_CLEARANCE + 0.1;  // Initialize above clearance
 
         for (size_t i = 0; i < msg->ranges.size(); ++i) {
             float angle = msg->angle_min + (i * msg->angle_increment);
@@ -45,9 +47,21 @@ class Patrol : public rclcpp::Node {
             float distance = msg->ranges[i];
 
             // Skip invalid readings
-            if (distance < msg->range_min || distance > msg->range_max ||
-                std::isnan(distance) || std::isinf(distance)) {
+            if (std::isnan(distance) || std::isinf(distance)) {
                 continue;
+            }
+
+            // Clamp to valid range
+            if (distance < msg->range_min) {
+                distance = msg->range_min;
+            }
+            if (distance > msg->range_max) {
+                distance = msg->range_max;
+            }
+
+            // Check distance directly in front (for obstacle detection)
+            if (std::abs(angle) < CENTER_ANGLE_TOLERANCE) {
+                min_front_distance = std::min(min_front_distance, distance);
             }
 
             // Only consider directions with at least 0.35m clearance
@@ -63,21 +77,24 @@ class Patrol : public rclcpp::Node {
             }
         }
 
-        direction_ = safest_angle;
+        // Only change direction if obstacle detected in front
+        if (min_front_distance > MIN_CLEARANCE) {
+            // Clear ahead - go straight!
+            direction_ = 0.0;
+        }
 
+        // Obstacle ahead! Turn toward safest direction
         if (found_valid) {
             direction_ = safest_angle;
-            RCLCPP_DEBUG(this->get_logger(),
-                         "Safest direction: %.2f rad (%.1f deg), clearance: %.2f m",
-                         direction_, direction_ * 180.0 / M_PI, max_range);
-
+            RCLCPP_INFO(this->get_logger(),
+                        "Obstacle at %.2fm! Turning to angle: %.2f rad (%.1f deg)",
+                        min_front_distance, direction_, direction_ * 180.0 / M_PI);
             return;
         }
 
-        // Emergency: no safe direction found, stop turning
+        // Emergency: no safe direction found at all
         direction_ = 0.0;
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-                             "No safe direction found!");
+        RCLCPP_WARN(this->get_logger(), "No safe direction found!");
     }
 
     void control_loop() {
