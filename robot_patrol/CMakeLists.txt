@@ -11,15 +11,15 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
-add_executable(patrol_node src/patrol.cpp)
-ament_target_dependencies(patrol_node
+add_executable(patrol_executable src/patrol.cpp)
+ament_target_dependencies(patrol_executable
   rclcpp
   sensor_msgs
   geometry_msgs
 )
 
 install(TARGETS
-	patrol_node
+	patrol_executable
 	DESTINATION lib/${PROJECT_NAME}
 )
 
