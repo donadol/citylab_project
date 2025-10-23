@@ -69,13 +69,13 @@ class Patrol : public rclcpp::Node {
         // Clear ahead - go straight!
         if (min_front_distance > MIN_CLEARANCE) {
             direction_ = 0.0;
-            RCLCPP_WARN(this->get_logger(), "Clear ahead!");
+            RCLCPP_DEBUG(this->get_logger(), "Clear ahead!");
             return;
         }
 
         // Obstacle ahead! Turn toward safest direction
         direction_ = safest_angle;
-        RCLCPP_INFO(this->get_logger(),
+        RCLCPP_WARN(this->get_logger(),
                     "Obstacle at %.2fm! Turning to angle: %.2f rad (%.1f deg)",
                     min_front_distance, direction_, direction_ * 180.0 / M_PI);
     }
