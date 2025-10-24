@@ -73,6 +73,10 @@ This will start:
 - The `patrol_node` which publishes velocity commands
 - RViz2 with the pre-configured display settings
 
+### Running on Real Robot
+
+The `real-robot` branch contains the necessary modifications to run this package on a physical robot. Switch to that branch if you need to deploy on real hardware.
+
 ## Topics
 
 ### Subscribed Topics
