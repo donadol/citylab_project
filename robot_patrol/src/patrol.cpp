@@ -1,4 +1,5 @@
 #include <chrono>
+#include <csignal>
 #include <geometry_msgs/msg/twist.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
@@ -10,15 +11,13 @@ class Patrol : public rclcpp::Node {
    public:
     Patrol() : Node("patrol_node"), direction_(0.0) {
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "/fastbot_1/scan", 10,
-            std::bind(&Patrol::laser_scan_callback, this, _1));
+            "/scan", 10, std::bind(&Patrol::laser_scan_callback, this, _1));
 
         cmd_vel_publisher_ =
-            this->create_publisher<geometry_msgs::msg::Twist>("/fastbot_1/cmd_vel", 10);
+            this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
         control_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),
-            std::bind(&Patrol::control_loop, this));
+            std::chrono::milliseconds(100), std::bind(&Patrol::control_loop, this));
 
         RCLCPP_INFO(this->get_logger(), "Patrol node initialized");
     }
@@ -32,11 +31,13 @@ class Patrol : public rclcpp::Node {
 
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        // We need front 180 degrees: from -π/2 to +π/2
-        const double FRONT_MIN_ANGLE = -M_PI / 2.0;  // -90 degrees
-        const double FRONT_MAX_ANGLE = M_PI / 2.0;   // +90 degrees
-        const double MIN_CLEARANCE = 0.35;           // 35 cm obstacle detection threshold
-        const double CENTER_ANGLE_TOLERANCE = 0.3;   // ~11 degrees - center front zone
+        // For real robot with 0 to 2π range:
+        // Front 180° = -90° to +90° = 270° to 90° in 0-2π notation
+        // = 3π/2 to π/2 (wrapping through 0)
+        const double FRONT_RIGHT_MIN = 3.0 * M_PI / 2.0;  // 270° = 3π/2
+        const double FRONT_LEFT_MAX = M_PI / 2.0;         // 90° = π/2
+        const double MIN_CLEARANCE = 0.35;
+        const double CENTER_ANGLE_TOLERANCE = 0.3;
 
         float max_distance = 0.0;
         float safest_angle = 0.0;
@@ -46,7 +47,9 @@ class Patrol : public rclcpp::Node {
             float angle = msg->angle_min + (i * msg->angle_increment);
 
             // Only consider front 180 degrees
-            if (angle < FRONT_MIN_ANGLE || angle > FRONT_MAX_ANGLE) {
+            // Only consider front 180 degrees: 270° to 360° OR 0° to 90°
+            bool is_front = (angle >= FRONT_RIGHT_MIN) || (angle <= FRONT_LEFT_MAX);
+            if (!is_front) {
                 continue;
             }
 
@@ -60,8 +63,9 @@ class Patrol : public rclcpp::Node {
             // Clamp to valid range
             distance = std::max(msg->range_min, std::min(distance, msg->range_max));
 
-            // Check distance directly in front (for obstacle detection)
-            if (std::abs(angle) < CENTER_ANGLE_TOLERANCE) {
+            // Track minimum front distance (near center at 0°)
+            // Center is at 0° (or 2π which wraps around)
+            if (angle <= CENTER_ANGLE_TOLERANCE || angle >= (2.0 * M_PI - CENTER_ANGLE_TOLERANCE)) {
                 min_front_distance = std::min(min_front_distance, distance);
             }
 
@@ -81,9 +85,17 @@ class Patrol : public rclcpp::Node {
         }
 
         // Obstacle ahead! Turn toward safest direction
-        direction_ = safest_angle;
-        RCLCPP_WARN(this->get_logger(),
-                    "Obstacle at %.2fm! Turning to angle: %.2f rad (%.1f deg)",
+        // Convert angle to steering command: 0° = straight, need to map to [-π, π] for control
+        float steering_angle = safest_angle;
+        if (steering_angle > M_PI) {
+            steering_angle -= 2.0 * M_PI;
+        }
+
+        // Apply smoothing - don't change direction too abruptly
+        direction_ = steering_angle;
+
+        RCLCPP_INFO(this->get_logger(),
+                    "Obstacle at %.2fm! Direction: %.2f rad (%.1f deg)",
                     min_front_distance, direction_, direction_ * 180.0 / M_PI);
     }
 
