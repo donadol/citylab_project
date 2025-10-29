@@ -32,12 +32,12 @@ class Patrol : public rclcpp::Node {
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         // For real robot with 0 to 2π range:
-        // Front 180° = -90° to +90° = 270° to 90° in 0-2π notation
-        // = 3π/2 to π/2 (wrapping through 0)
-        const double FRONT_RIGHT_MIN = 3.0 * M_PI / 2.0;  // 270° = 3π/2
-        const double FRONT_LEFT_MAX = M_PI / 2.0;         // 90° = π/2
+        // Using narrow 60° window to prevent extreme turns and promote lap behavior
+        // Front 60° = -30° to +30° = 330° to 30° in 0-2π notation
+        // = 11π/6 to π/6 (wrapping through 0)
+        const double FRONT_RIGHT_MIN = 11.0 * M_PI / 6.0;  // 330° = 11π/6 (-30°)
+        const double FRONT_LEFT_MAX = M_PI / 6.0;          // 30° = π/6
         const double MIN_CLEARANCE = 0.35;
-        const double CENTER_ANGLE_TOLERANCE = 0.3;
 
         float max_distance = 0.0;
         float safest_angle = 0.0;
@@ -46,8 +46,7 @@ class Patrol : public rclcpp::Node {
         for (size_t i = 0; i < msg->ranges.size(); ++i) {
             float angle = msg->angle_min + (i * msg->angle_increment);
 
-            // Only consider front 180 degrees
-            // Only consider front 180 degrees: 270° to 360° OR 0° to 90°
+            // Only consider front 60 degrees: 330° to 360° OR 0° to 30°
             bool is_front = (angle >= FRONT_RIGHT_MIN) || (angle <= FRONT_LEFT_MAX);
             if (!is_front) {
                 continue;
@@ -63,14 +62,10 @@ class Patrol : public rclcpp::Node {
             // Clamp to valid range
             distance = std::max(msg->range_min, std::min(distance, msg->range_max));
 
-            // Track minimum front distance (near center at 0°)
-            // Center is at 0° (or 2π which wraps around)
-            if (angle <= CENTER_ANGLE_TOLERANCE || angle >= (2.0 * M_PI - CENTER_ANGLE_TOLERANCE)) {
-                min_front_distance = std::min(min_front_distance, distance);
-            }
+            // Track minimum distance in our 60° window (used for obstacle detection)
+            min_front_distance = std::min(min_front_distance, distance);
 
-            // Only consider directions with at least 0.35m clearance
-            // Find safest (maximum distance) direction
+            // Find safest (maximum distance) direction with sufficient clearance
             if (distance > max_distance && distance >= MIN_CLEARANCE) {
                 max_distance = distance;
                 safest_angle = angle;
