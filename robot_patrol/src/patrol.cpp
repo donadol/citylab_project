@@ -37,7 +37,7 @@ class Patrol : public rclcpp::Node {
         // = 11π/6 to π/6 (wrapping through 0)
         const double FRONT_RIGHT_MIN = 11.0 * M_PI / 6.0;  // 330° = 11π/6 (-30°)
         const double FRONT_LEFT_MAX = M_PI / 6.0;          // 30° = π/6
-        const double MIN_CLEARANCE = 0.35;
+        const double MIN_CLEARANCE = 0.4;
 
         float max_distance = 0.0;
         float safest_angle = 0.0;
@@ -69,6 +69,9 @@ class Patrol : public rclcpp::Node {
             if (distance > max_distance && distance >= MIN_CLEARANCE) {
                 max_distance = distance;
                 safest_angle = angle;
+                RCLCPP_DEBUG(this->get_logger(),
+                             "Max distance %.2fm! Angle: %.2f rad (%.1f deg) Index: %zu",
+                             distance, angle, angle * 180.0 / M_PI, i);
             }
         }
 
