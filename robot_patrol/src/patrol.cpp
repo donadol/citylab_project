@@ -17,7 +17,7 @@ class Patrol : public rclcpp::Node {
             this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
         control_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100), std::bind(&Patrol::control_loop, this));
+            std::chrono::milliseconds(50), std::bind(&Patrol::control_loop, this));
 
         RCLCPP_INFO(this->get_logger(), "Patrol node initialized");
     }
@@ -37,7 +37,7 @@ class Patrol : public rclcpp::Node {
         // = 11π/6 to π/6 (wrapping through 0)
         const double FRONT_RIGHT_MIN = 11.0 * M_PI / 6.0;  // 330° = 11π/6 (-30°)
         const double FRONT_LEFT_MAX = M_PI / 6.0;          // 30° = π/6
-        const double MIN_CLEARANCE = 0.4;
+        const double MIN_CLEARANCE = 0.35;
 
         float max_distance = 0.0;
         float safest_angle = 0.0;
@@ -75,8 +75,8 @@ class Patrol : public rclcpp::Node {
             }
         }
 
-        // Clear ahead - go straight!
-        if (min_front_distance > MIN_CLEARANCE) {
+        // Clear front - go straight!
+        if (min_front_distance > MIN_CLEARANCE + 0.1) {
             direction_ = 0.0;
             RCLCPP_DEBUG(this->get_logger(), "Clear ahead!");
             return;
@@ -100,8 +100,8 @@ class Patrol : public rclcpp::Node {
     void control_loop() {
         auto msg = geometry_msgs::msg::Twist();
 
-        msg.linear.x = 0.1;              // Always move forward
-        msg.angular.z = direction_ / 2;  // Turn toward safest direction
+        msg.linear.x = 0.1;                // Always move forward
+        msg.angular.z = direction_ / 4.0;  // Turn toward safest direction
 
         cmd_vel_publisher_->publish(msg);
     }
