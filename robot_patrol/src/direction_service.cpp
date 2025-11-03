@@ -18,14 +18,6 @@ class DirectionService : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(), "%s Service Server Ready...", name_service.c_str());
     }
 
-    void stop_rover() {
-        auto stop_msg =
-            geometry_msgs::msg::Twist();  // All fields default to zero, which
-                                          // represents stopping the rover
-        publisher_->publish(stop_msg);
-        RCLCPP_INFO(this->get_logger(), "Publishing stop message before shutdown");
-    }
-
    private:
     void direction_service(const std::shared_ptr<robot_patrol::srv::GetDirection::Request> request,
                            std::shared_ptr<robot_patrol::srv::GetDirection::Response> response) {
@@ -132,19 +124,9 @@ class DirectionService : public rclcpp::Node {
     }
 };
 
-std::shared_ptr<DirectionService> node;
-
-void signal_handler(int signum) {
-    node->stop_rover();
-    rclcpp::shutdown();
-}
-
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    node = std::make_shared<DirectionService>();
-
-    // Register the signal handler for CTRL+C
-    signal(SIGINT, signal_handler);
+    std::shared_ptr<DirectionService> node = std::make_shared<DirectionService>();
 
     rclcpp::spin(node);
     rclcpp::shutdown();
