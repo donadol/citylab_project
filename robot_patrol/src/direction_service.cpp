@@ -3,14 +3,14 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <numeric>
 #include <rclcpp/rclcpp.hpp>
-#include <robot_patrol/srv/get_direction.hpp>
+#include <robot_patrol_msg/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 class DirectionService : public rclcpp::Node {
    public:
     DirectionService() : Node("direction_service_node") {
         std::string name_service = "/direction_service";
-        service_ = this->create_service<robot_patrol::srv::GetDirection>(
+        service_ = this->create_service<robot_patrol_msg::srv::GetDirection>(
             name_service,
             std::bind(&DirectionService::direction_service, this,
                       std::placeholders::_1, std::placeholders::_2));
@@ -122,6 +122,7 @@ class DirectionService : public rclcpp::Node {
         response->direction = "right";
         RCLCPP_INFO(this->get_logger(), "Decision: RIGHT (fallback)");
     }
+    rclcpp::Service<robot_patrol_msg::srv::GetDirection>::SharedPtr service_;
 };
 
 int main(int argc, char** argv) {

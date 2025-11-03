@@ -6,13 +6,13 @@ using std::placeholders::_2;
 
 class TestService : public rclcpp::Node {
    public:
-    TestService() : Node("test_service_node"), direction_(0.0) {
+    TestService() : Node("test_service_node") {
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/fastbot_1/scan", 10,
             std::bind(&TestService::laser_scan_callback, this, _1));
 
         std::string name_service = "/direction_service";
-        client_ = this->create_client<robot_patrol::srv::GetDirection>(name_service);
+        client_ = this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
 
         // Wait for the service to be available (checks every second)
         while (!client_->wait_for_service(1s)) {
@@ -31,7 +31,7 @@ class TestService : public rclcpp::Node {
 
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        auto request = std::make_shared<robot_patrol::srv::GetDirection::Request>();
+        auto request = std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
         request->laser_data = msg;
 
         // Send the request asynchronously
@@ -43,15 +43,14 @@ class TestService : public rclcpp::Node {
             rclcpp::FutureReturnCode::SUCCESS) {
             auto response = result_future.get();
             // Log the service response
-            RCLCPP_INFO(this->get_logger(), "Direction: %s",
-                        response->direction);
+            RCLCPP_INFO(this->get_logger(), "Direction: %s", response->direction);
         } else {
             RCLCPP_ERROR(this->get_logger(), "Failed to call service");
         }
     }
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
-    rclcpp::Client<services_quiz_srv::srv::Turn>::SharedPtr client_;
+    rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedPtr client_;
 };
 
 int main(int argc, char* argv[]) {
