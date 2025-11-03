@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(robot_patrol)
+project(robot_patrol_msg)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -8,50 +8,8 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(robot_patrol_msg REQUIRED)
-
-add_executable(patrol_executable src/patrol.cpp)
-ament_target_dependencies(patrol_executable
-  rclcpp
-  sensor_msgs
-  geometry_msgs
-)
-
-add_executable(direction_service src/direction_service.cpp)
-ament_target_dependencies(direction_service
-  rclcpp
-  sensor_msgs
-  geometry_msgs
-  robot_patrol_msg
-)
-
-add_executable(test_service src/test_service.cpp)
-ament_target_dependencies(test_service
-  rclcpp
-  sensor_msgs
-  robot_patrol_msg
-)
-
-install(TARGETS
-	patrol_executable
-   direction_service
-   test_service
-	DESTINATION lib/${PROJECT_NAME}
-)
-
-# Install launch files
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# Install config files
-install(DIRECTORY
-  config
-  DESTINATION share/${PROJECT_NAME}
-)
+find_package(rosidl_default_generators REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -64,5 +22,10 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/GetDirection.srv"
+   DEPENDENCIES sensor_msgs
+)
 
 ament_package()
