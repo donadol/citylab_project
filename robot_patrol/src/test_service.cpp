@@ -14,7 +14,8 @@ class TestService : public rclcpp::Node {
             std::bind(&TestService::laser_scan_callback, this, _1));
 
         std::string name_service = "/direction_service";
-        client_ = this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
+        client_ =
+            this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
 
         // Wait for the service to be available (checks every second)
         while (!client_->wait_for_service(1s)) {
@@ -28,13 +29,16 @@ class TestService : public rclcpp::Node {
                         name_service.c_str());
         }
 
-        RCLCPP_INFO(this->get_logger(), "TestService node initialized");
+        RCLCPP_INFO(this->get_logger(), "Service client Ready");
     }
 
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        auto request = std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
+        auto request =
+            std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
         request->laser_data = *msg;
+
+        RCLCPP_INFO(this->get_logger(), "Service Request");
 
         // Send the request asynchronously
         auto result = client_->async_send_request(
@@ -42,10 +46,8 @@ class TestService : public rclcpp::Node {
             [this](rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedFuture
                        future_response) {
                 auto response = future_response.get();
-                RCLCPP_INFO(this->get_logger(), "Direction: %s",
+                RCLCPP_INFO(this->get_logger(), "Service Response: %s",
                             response->direction.c_str());
-
-                rclcpp::shutdown();
             });
     }
 

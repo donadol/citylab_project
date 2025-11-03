@@ -14,13 +14,14 @@ class DirectionService : public rclcpp::Node {
             name_service, std::bind(&DirectionService::direction_service, this,
                                     std::placeholders::_1, std::placeholders::_2));
 
-        RCLCPP_INFO(this->get_logger(), "%s Service Server Ready...", name_service.c_str());
+        RCLCPP_INFO(this->get_logger(), "%s Service Server Ready...",
+                    name_service.c_str());
     }
 
    private:
     void direction_service(const std::shared_ptr<robot_patrol_msg::srv::GetDirection::Request> request,
                            std::shared_ptr<robot_patrol_msg::srv::GetDirection::Response> response) {
-        RCLCPP_INFO(this->get_logger(), "Received direction request");
+        RCLCPP_INFO(this->get_logger(), "Service Requested");
 
         // Get the laser scan data from the request
         auto laser_data = request->laser_data;
@@ -84,6 +85,8 @@ class DirectionService : public rclcpp::Node {
         RCLCPP_INFO(this->get_logger(),
                     "Section totals - Right: %.2f, Front: %.2f, Left: %.2f | Min front: %.2f",
                     total_dist_sec_right, total_dist_sec_front, total_dist_sec_left, min_front_distance);
+
+        RCLCPP_INFO(this->get_logger(), "Service Completed");
 
         // Decision logic:
         // 1. If front is clear (min distance > 35cm), go forward
