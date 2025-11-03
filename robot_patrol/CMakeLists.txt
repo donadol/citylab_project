@@ -26,9 +26,16 @@ ament_target_dependencies(direction_service
   geometry_msgs
 )
 
+add_executable(test_service src/test_service.cpp)
+ament_target_dependencies(test_service
+  rclcpp
+  sensor_msgs
+)
+
 install(TARGETS
 	patrol_executable
   direction_service
+  test_service
 	DESTINATION lib/${PROJECT_NAME}
 )
 
