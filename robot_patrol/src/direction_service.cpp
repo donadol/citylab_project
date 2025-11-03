@@ -26,18 +26,19 @@ class DirectionService : public rclcpp::Node {
         // Get the laser scan data from the request
         auto laser_data = request->laser_data;
 
-        // Laser scan covers front 180 degrees: from -π/2 to +π/2
-        // Divide into 3 sections of 60° each:
-        // Right:  -π/2 to -π/6  (-90° to -30°)
-        // Front:  -π/6 to +π/6  (-30° to +30°)
-        // Left:   +π/6 to +π/2  (+30° to +90°)
+        // Laser scan: 0 to 2π (360°) - angle_min=0, angle_max=6.28...
+        // Robot faces forward at 0°/360° (top of the image)
+        // Front 180° divided into 3 sections of 60° each:
+        // Right:  270° to 330° = 3π/2 to 11π/6
+        // Front:  330° to 30°  = 11π/6 to π/6  (wraps through 0°)
+        // Left:   30° to 90°   = π/6 to π/2
 
-        const double RIGHT_MIN = -M_PI / 2.0;  // -90°
-        const double RIGHT_MAX = -M_PI / 6.0;  // -30°
-        const double FRONT_MIN = -M_PI / 6.0;  // -30°
-        const double FRONT_MAX = M_PI / 6.0;   // +30°
-        const double LEFT_MIN = M_PI / 6.0;    // +30°
-        const double LEFT_MAX = M_PI / 2.0;    // +90°
+        const double RIGHT_MIN = 3.0 * M_PI / 2.0;   // 270° = 3π/2
+        const double RIGHT_MAX = 11.0 * M_PI / 6.0;  // 330° = 11π/6
+        const double FRONT_MIN = 11.0 * M_PI / 6.0;  // 330° = 11π/6
+        const double FRONT_MAX = M_PI / 6.0;         // 30°  = π/6
+        const double LEFT_MIN = M_PI / 6.0;          // 30°  = π/6
+        const double LEFT_MAX = M_PI / 2.0;          // 90°  = π/2
 
         const double MIN_CLEARANCE = 0.35;  // 35 cm threshold
 
@@ -62,21 +63,21 @@ class DirectionService : public rclcpp::Node {
             }
 
             // Determine which section this ray belongs to and sum distances
+            // Right section: 270° to 330°
             if (angle >= RIGHT_MIN && angle < RIGHT_MAX) {
-                // Right section
                 total_dist_sec_right += distance;
                 continue;
             }
 
-            if (angle >= FRONT_MIN && angle < FRONT_MAX) {
-                // Front section
+            // Front section: 330° to 360° OR 0° to 30° (wraps through 0°)
+            if (angle >= FRONT_MIN || angle <= FRONT_MAX) {
                 total_dist_sec_front += distance;
                 min_front_distance = std::min(min_front_distance, static_cast<double>(distance));
                 continue;
             }
 
-            if (angle >= LEFT_MIN && angle <= LEFT_MAX) {
-                // Left section
+            // Left section: 30° to 90°
+            if (angle > LEFT_MIN && angle <= LEFT_MAX) {
                 total_dist_sec_left += distance;
             }
         }

@@ -11,11 +11,10 @@ class PatrolWithService : public rclcpp::Node {
    public:
     PatrolWithService() : Node("patrol_with_service_node"), direction_("") {
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "/fastbot_1/scan", 10,
-            std::bind(&PatrolWithService::laser_scan_callback, this, _1));
+            "/scan", 10, std::bind(&PatrolWithService::laser_scan_callback, this, _1));
 
         cmd_vel_publisher_ =
-            this->create_publisher<geometry_msgs::msg::Twist>("/fastbot_1/cmd_vel", 10);
+            this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
         control_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(100),

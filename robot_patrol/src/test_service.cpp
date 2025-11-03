@@ -10,8 +10,7 @@ class TestService : public rclcpp::Node {
    public:
     TestService() : Node("test_service_node") {
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "/fastbot_1/scan", 10,
-            std::bind(&TestService::laser_scan_callback, this, _1));
+            "/scan", 10, std::bind(&TestService::laser_scan_callback, this, _1));
 
         std::string name_service = "/direction_service";
         client_ =
