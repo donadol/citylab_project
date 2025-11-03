@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(robot_patrol_msg REQUIRED)
 
 add_executable(patrol_executable src/patrol.cpp)
 ament_target_dependencies(patrol_executable
@@ -18,8 +19,34 @@ ament_target_dependencies(patrol_executable
   geometry_msgs
 )
 
+add_executable(direction_service src/direction_service.cpp)
+ament_target_dependencies(direction_service
+  rclcpp
+  sensor_msgs
+  geometry_msgs
+  robot_patrol_msg
+)
+
+add_executable(test_service src/test_service.cpp)
+ament_target_dependencies(test_service
+  rclcpp
+  sensor_msgs
+  robot_patrol_msg
+)
+
+add_executable(patrol_with_service_executable src/patrol.cpp)
+ament_target_dependencies(patrol_with_service_executable
+  rclcpp
+  sensor_msgs
+  geometry_msgs
+  robot_patrol_msg
+)
+
 install(TARGETS
 	patrol_executable
+  direction_service
+  test_service
+  patrol_with_service_executable
 	DESTINATION lib/${PROJECT_NAME}
 )
 
