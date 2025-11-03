@@ -40,7 +40,7 @@ class DirectionService : public rclcpp::Node {
         const double LEFT_MIN = M_PI / 6.0;          // 30°  = π/6
         const double LEFT_MAX = M_PI / 2.0;          // 90°  = π/2
 
-        const double MIN_CLEARANCE = 0.35;  // 35 cm threshold
+        const double MIN_CLEARANCE = 0.5;  // 50 cm threshold
 
         // Initialize distance totals for each section
         double total_dist_sec_right = 0.0;
