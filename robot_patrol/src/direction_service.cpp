@@ -11,17 +11,16 @@ class DirectionService : public rclcpp::Node {
     DirectionService() : Node("direction_service_node") {
         std::string name_service = "/direction_service";
         service_ = this->create_service<robot_patrol_msg::srv::GetDirection>(
-            name_service,
-            std::bind(&DirectionService::direction_service, this,
-                      std::placeholders::_1, std::placeholders::_2));
+            name_service, std::bind(&DirectionService::direction_service, this,
+                                    std::placeholders::_1, std::placeholders::_2));
 
         RCLCPP_INFO(this->get_logger(), "%s Service Server Ready...", name_service.c_str());
     }
 
    private:
-    void direction_service(const std::shared_ptr<robot_patrol::srv::GetDirection::Request> request,
-                           std::shared_ptr<robot_patrol::srv::GetDirection::Response> response) {
-        RCLCPP_INFO(this->get_logger(), "Received direction request: time=%.2f seconds", request->time);
+    void direction_service(const std::shared_ptr<robot_patrol_msg::srv::GetDirection::Request> request,
+                           std::shared_ptr<robot_patrol_msg::srv::GetDirection::Response> response) {
+        RCLCPP_INFO(this->get_logger(), "Received direction request");
 
         // Get the laser scan data from the request
         auto laser_data = request->laser_data;

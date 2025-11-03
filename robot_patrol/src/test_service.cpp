@@ -1,8 +1,10 @@
 #include <rclcpp/rclcpp.hpp>
+#include <robot_patrol_msg/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+using namespace std::chrono_literals;
 
 class TestService : public rclcpp::Node {
    public:
@@ -32,21 +34,19 @@ class TestService : public rclcpp::Node {
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         auto request = std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
-        request->laser_data = msg;
+        request->laser_data = *msg;
 
         // Send the request asynchronously
-        auto result_future = client_->async_send_request(request);
+        auto result = client_->async_send_request(
+            request,
+            [this](rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedFuture
+                       future_response) {
+                auto response = future_response.get();
+                RCLCPP_INFO(this->get_logger(), "Direction: %s",
+                            response->direction.c_str());
 
-        // Wait for the result
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(),
-                                               result_future) ==
-            rclcpp::FutureReturnCode::SUCCESS) {
-            auto response = result_future.get();
-            // Log the service response
-            RCLCPP_INFO(this->get_logger(), "Direction: %s", response->direction);
-        } else {
-            RCLCPP_ERROR(this->get_logger(), "Failed to call service");
-        }
+                rclcpp::shutdown();
+            });
     }
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
@@ -56,7 +56,6 @@ class TestService : public rclcpp::Node {
 int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
     std::shared_ptr<TestService> node = std::make_shared<TestService>();
-
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
