@@ -26,8 +26,8 @@ class DirectionService : public rclcpp::Node {
         // Get the laser scan data from the request
         auto laser_data = request->laser_data;
 
-        // Laser scan: 0 to 2π (360°) - angle_min=0, angle_max=6.28...
-        // Robot faces forward at 0°/360° (top of the image)
+        // Real robot laser: 0 to 2π (360°) - angle_min=0, angle_max=6.28...
+        // Robot faces forward at 0°/360°
         // Front 180° divided into 3 sections of 60° each:
         // Right:  270° to 330° = 3π/2 to 11π/6
         // Front:  330° to 30°  = 11π/6 to π/6  (wraps through 0°)
@@ -52,15 +52,15 @@ class DirectionService : public rclcpp::Node {
 
         // Sum up distances for each section
         for (size_t i = 0; i < laser_data.ranges.size(); ++i) {
-            // Calculate the angle for this ray
-            float angle = laser_data.angle_min + (i * laser_data.angle_increment);
             float distance = laser_data.ranges[i];
 
-            // Skip invalid readings (nan, inf, or out of range)
-            if (std::isnan(distance) || std::isinf(distance) ||
-                distance < laser_data.range_min || distance > laser_data.range_max) {
+            // Skip invalid readings (inf values indicate out-of-range)
+            if (std::isinf(distance) || std::isnan(distance)) {
                 continue;
             }
+
+            // Calculate the angle for this ray
+            float angle = laser_data.angle_min + (i * laser_data.angle_increment);
 
             // Determine which section this ray belongs to and sum distances
             // Right section: 270° to 330°
@@ -77,7 +77,7 @@ class DirectionService : public rclcpp::Node {
             }
 
             // Left section: 30° to 90°
-            if (angle > LEFT_MIN && angle <= LEFT_MAX) {
+            if (angle >= LEFT_MIN && angle <= LEFT_MAX) {
                 total_dist_sec_left += distance;
             }
         }
