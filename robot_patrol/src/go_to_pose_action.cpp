@@ -8,59 +8,45 @@
 #include "geometry_msgs/msg/pose2_d.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/odometry.hpp"
-#include "rclcpp/executors/multi_threaded_executor.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/subscription_options.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
-#include "robot_patrol_msg/action/go_to_pose.hpp"
+#include "robot_patrol/action/go_to_pose.hpp"
 
 using namespace std::chrono_literals;
 
 class GoToPose : public rclcpp::Node {
    public:
-    using GoToPoseAction = robot_patrol_msg::action::GoToPose;
-    using GoalHandleGoToPoseAction = rclcpp_action::ServerGoalHandle<GoToPoseAction>;
+    using GoToPoseAction = robot_patrol::action::GoToPose;
+    using GoalHandleGoToPoseAction =
+        rclcpp_action::ServerGoalHandle<GoToPoseAction>;
 
     explicit GoToPose(const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
         : Node("go_to_pose_action", options) {
         using namespace std::placeholders;
 
-        // Create callback groups for handling subscriptions and timers
-        odom_sub_group_ = this->create_callback_group(
-            rclcpp::CallbackGroupType::MutuallyExclusive);
-        timer_group_ = this->create_callback_group(
-            rclcpp::CallbackGroupType::MutuallyExclusive);
-        RCLCPP_INFO(this->get_logger(), "Initialized Callback Groups !");
-
         // Create the action server
         this->action_server_ = rclcpp_action::create_server<GoToPoseAction>(
-            this,
-            "/go_to_pose",
-            std::bind(&GoToPose::handle_goal, this, _1, _2),
+            this, "/go_to_pose", std::bind(&GoToPose::handle_goal, this, _1, _2),
             std::bind(&GoToPose::handle_cancel, this, _1),
             std::bind(&GoToPose::handle_accepted, this, _1));
 
         // Subscribe to odometry to get the robot's current position
-        rclcpp::SubscriptionOptions odom_sub_options_;
-        odom_sub_options_.callback_group = odom_sub_group_;
         odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/fastbot_1/odom", 10,
-            std::bind(&GoToPose::odom_callback, this, _1), odom_sub_options_);
+            "/fastbot_1/odom", 10, std::bind(&GoToPose::odom_callback, this, _1));
 
         // Create publisher for velocity commands
-        cmd_vel_publisher_ =
-            this->create_publisher<geometry_msgs::msg::Twist>("/fastbot_1/cmd_vel", 10);
+        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
+            "/fastbot_1/cmd_vel", 10);
 
-        // Create a timer for controlling the robot's movement
+        // Create a timer for controlling the robot's movement (10 Hz)
         control_timer_ = this->create_wall_timer(
-            100ms, std::bind(&GoToPose::control_loop, this), timer_group_);
+            100ms, std::bind(&GoToPose::control_loop, this));
 
         RCLCPP_INFO(this->get_logger(), "GoToPose action server is ready");
     }
 
    private:
-    rclcpp::CallbackGroup::SharedPtr odom_sub_group_;
-    rclcpp::CallbackGroup::SharedPtr timer_group_;
     rclcpp_action::Server<GoToPoseAction>::SharedPtr action_server_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
@@ -69,7 +55,6 @@ class GoToPose : public rclcpp::Node {
     geometry_msgs::msg::Pose2D desired_pos_;
     geometry_msgs::msg::Pose2D current_pos_;
     bool goal_active_ = false;
-    std::shared_ptr<GoalHandleGoToPoseAction> active_goal_handle_;
 
     // Callback for odometry - updates current robot position
     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -79,25 +64,16 @@ class GoToPose : public rclcpp::Node {
 
         // Convert quaternion to Euler angles to get theta (yaw)
         tf2::Quaternion q(
-            msg->pose.pose.orientation.x,
-            msg->pose.pose.orientation.y,
-            msg->pose.pose.orientation.z,
-            msg->pose.pose.orientation.w);
-
-        tf2::Matrix3x3 m(q);
-        double roll, pitch, yaw;
-        m.getRPY(roll, pitch, yaw);
-
-        // Store theta (yaw) in radians
-        current_pos_.theta = yaw;
+            msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
+            msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
+        current_pos_.theta = tf2::getYaw(q);
     }
 
     // Handle incoming goal requests
     rclcpp_action::GoalResponse
     handle_goal(const rclcpp_action::GoalUUID& uuid,
                 std::shared_ptr<const GoToPoseAction::Goal> goal) {
-        RCLCPP_INFO(this->get_logger(),
-                    "Received goal request: x=%.2f, y=%.2f, theta=%.2f",
+        RCLCPP_INFO(this->get_logger(), "Action Called: x=%.2f, y=%.2f, theta=%.2f",
                     goal->goal_pos.x, goal->goal_pos.y, goal->goal_pos.theta);
         (void)uuid;
         return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
@@ -112,7 +88,8 @@ class GoToPose : public rclcpp::Node {
     }
 
     // Handle accepted goals
-    void handle_accepted(const std::shared_ptr<GoalHandleGoToPoseAction> goal_handle) {
+    void
+    handle_accepted(const std::shared_ptr<GoalHandleGoToPoseAction> goal_handle) {
         using namespace std::placeholders;
         // Execute in a new thread to avoid blocking the executor
         std::thread{std::bind(&GoToPose::execute, this, _1), goal_handle}.detach();
@@ -128,16 +105,18 @@ class GoToPose : public rclcpp::Node {
 
         // Store the desired position and activate goal
         desired_pos_ = goal->goal_pos;
+        // Convert theta to rad
+        desired_pos_.theta = goal->goal_pos.theta * M_PI / 180.0;
         goal_active_ = true;
         active_goal_handle_ = goal_handle;
 
         RCLCPP_INFO(this->get_logger(),
-                    "Goal position set: x=%.2f, y=%.2f, theta=%.2f",
-                    desired_pos_.x, desired_pos_.y, desired_pos_.theta);
+                    "Goal position set: x=%.2f, y=%.2f, theta=%.2f", desired_pos_.x,
+                    desired_pos_.y, desired_pos_.theta);
 
         // Position tolerance (meters) and orientation tolerance (radians)
-        const double position_tolerance = 0.1;     // 10 cm
-        const double orientation_tolerance = 0.1;  // ~5.7 degrees
+        const double position_tolerance = 0.1;  // 10 cm
+        const double orientation_tolerance = 0.1;
 
         // Publish feedback every 1 second
         rclcpp::Rate loop_rate(1);  // 1 Hz for feedback
@@ -164,19 +143,24 @@ class GoToPose : public rclcpp::Node {
             // Calculate orientation error
             double orientation_error = desired_pos_.theta - current_pos_.theta;
             // Normalize to [-pi, pi]
-            while (orientation_error > M_PI) orientation_error -= 2.0 * M_PI;
-            while (orientation_error < -M_PI) orientation_error += 2.0 * M_PI;
+            while (orientation_error > M_PI)
+                orientation_error -= 2.0 * M_PI;
+            while (orientation_error < -M_PI)
+                orientation_error += 2.0 * M_PI;
 
             // Publish feedback with current position every second
             feedback->current_pos = current_pos_;
             goal_handle->publish_feedback(feedback);
 
             RCLCPP_INFO(this->get_logger(),
-                        "Feedback - Current: [%.2f, %.2f, %.2f], Distance: %.2f m",
-                        current_pos_.x, current_pos_.y, current_pos_.theta, distance);
+                        "Feedback - Current: [%.2f, %.2f, %.2f], Distance: %.2f m, "
+                        "orientation error: %.2f rad",
+                        current_pos_.x, current_pos_.y, current_pos_.theta, distance,
+                        orientation_error);
 
             // Check if goal is reached
-            if (distance < position_tolerance && std::abs(orientation_error) < orientation_tolerance) {
+            if (distance < position_tolerance &&
+                std::abs(orientation_error) < orientation_tolerance) {
                 result->status = true;
                 goal_handle->succeed(result);
                 goal_active_ = false;
@@ -185,7 +169,7 @@ class GoToPose : public rclcpp::Node {
                 auto stop_msg = geometry_msgs::msg::Twist();
                 cmd_vel_publisher_->publish(stop_msg);
 
-                RCLCPP_INFO(this->get_logger(), "Goal reached successfully!");
+                RCLCPP_INFO(this->get_logger(), "Action Completed");
                 return;
             }
 
@@ -215,8 +199,10 @@ class GoToPose : public rclcpp::Node {
         double angle_diff = desired_angle - current_pos_.theta;
 
         // Normalize angle difference to [-pi, pi]
-        while (angle_diff > M_PI) angle_diff -= 2.0 * M_PI;
-        while (angle_diff < -M_PI) angle_diff += 2.0 * M_PI;
+        while (angle_diff > M_PI)
+            angle_diff -= 2.0 * M_PI;
+        while (angle_diff < -M_PI)
+            angle_diff += 2.0 * M_PI;
 
         // 5. Convert the vector direction into angular speed (angular.z)
         // Use proportional control: angular velocity proportional to angle error
@@ -238,10 +224,7 @@ int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<GoToPose>();
 
-    // Create a multi-threaded executor to handle callbacks concurrently
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(node);
-    executor.spin();
+    node.spin();
 
     rclcpp::shutdown();
     return 0;
