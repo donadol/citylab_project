@@ -82,7 +82,7 @@ class PatrolWithService : public rclcpp::Node {
 
         RCLCPP_INFO(this->get_logger(),
                     "Direction: %s → cmd_vel linear: %.2f angular: %.2f",
-                    direction.c_str(), cmd.linear.x, cmd.angular.z);
+                    direction_.c_str(), msg.linear.x, msg.angular.z);
 
         cmd_vel_publisher_->publish(msg);
     }
@@ -91,7 +91,7 @@ class PatrolWithService : public rclcpp::Node {
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
     rclcpp::TimerBase::SharedPtr control_timer_;
     rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedPtr client_;
-    string direction_;
+    std::string direction_;
 };
 
 // Global node pointer for signal handler
