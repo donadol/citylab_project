@@ -44,12 +44,12 @@ class GoToPose : public rclcpp::Node {
         rclcpp::SubscriptionOptions odom_sub_options_;
         odom_sub_options_.callback_group = odom_sub_group_;
         odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/odom", 10,
+            "/fastbot_1/odom", 10,
             std::bind(&GoToPose::odom_callback, this, _1), odom_sub_options_);
 
         // Create publisher for velocity commands
         cmd_vel_publisher_ =
-            this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+            this->create_publisher<geometry_msgs::msg::Twist>("/fastbot_1/cmd_vel", 10);
 
         // Create a timer for controlling the robot's movement
         control_timer_ = this->create_wall_timer(
@@ -136,7 +136,7 @@ class GoToPose : public rclcpp::Node {
                     desired_pos_.x, desired_pos_.y, desired_pos_.theta);
 
         // Position tolerance (meters) and orientation tolerance (radians)
-        const double position_tolerance = 0.1;  // 10 cm
+        const double position_tolerance = 0.1;     // 10 cm
         const double orientation_tolerance = 0.1;  // ~5.7 degrees
 
         // Publish feedback every 1 second
@@ -229,8 +229,8 @@ class GoToPose : public rclcpp::Node {
         cmd_vel_publisher_->publish(twist_msg);
 
         RCLCPP_DEBUG(this->get_logger(),
-                    "Control: dx=%.2f, dy=%.2f, desired_angle=%.2f, angle_diff=%.2f",
-                    dx, dy, desired_angle, angle_diff);
+                     "Control: dx=%.2f, dy=%.2f, desired_angle=%.2f, angle_diff=%.2f",
+                     dx, dy, desired_angle, angle_diff);
     }
 };
 
