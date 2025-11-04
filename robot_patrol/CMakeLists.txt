@@ -8,9 +8,12 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(robot_patrol_msg REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 add_executable(patrol_executable src/patrol.cpp)
 ament_target_dependencies(patrol_executable
@@ -42,11 +45,23 @@ ament_target_dependencies(patrol_with_service_executable
   robot_patrol_msg
 )
 
+add_executable(go_to_pose_action src/go_to_pose_action.cpp)
+ament_target_dependencies(go_to_pose_action
+  rclcpp
+  nav_msgs
+  sensor_msgs
+  geometry_msgs
+  robot_patrol_msg
+  tf2
+  tf2_geometry_msgs
+)
+
 install(TARGETS
-	patrol_executable
-    direction_service
-    test_service
-    patrol_with_service_executable
+  patrol_executable
+  direction_service
+  test_service
+  patrol_with_service_executable
+  go_to_pose_action
 	DESTINATION lib/${PROJECT_NAME}
 )
 
