@@ -11,7 +11,6 @@ find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(robot_patrol_msg REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -28,14 +27,12 @@ ament_target_dependencies(direction_service
   rclcpp
   sensor_msgs
   geometry_msgs
-  robot_patrol_msg
 )
 
 add_executable(test_service src/test_service.cpp)
 ament_target_dependencies(test_service
   rclcpp
   sensor_msgs
-  robot_patrol_msg
 )
 
 add_executable(patrol_with_service_executable src/patrol_with_service.cpp)
@@ -43,7 +40,6 @@ ament_target_dependencies(patrol_with_service_executable
   rclcpp
   sensor_msgs
   geometry_msgs
-  robot_patrol_msg
 )
 
 add_executable(go_to_pose_action src/go_to_pose_action.cpp)
@@ -52,7 +48,6 @@ ament_target_dependencies(go_to_pose_action
   nav_msgs
   sensor_msgs
   geometry_msgs
-  robot_patrol_msg
   tf2
   tf2_geometry_msgs
 )

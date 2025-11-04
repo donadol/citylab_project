@@ -3,8 +3,9 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <numeric>
 #include <rclcpp/rclcpp.hpp>
-#include <robot_patrol/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+
+#include "robot_patrol/srv/get_direction.hpp"
 
 class DirectionService : public rclcpp::Node {
    public:

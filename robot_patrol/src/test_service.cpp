@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
-#include <robot_patrol/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+
+#include "robot_patrol/srv/get_direction.hpp"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
