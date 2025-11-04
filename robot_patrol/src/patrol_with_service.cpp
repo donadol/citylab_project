@@ -4,22 +4,35 @@
 #include <robot_patrol_msg/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
+#include "rclcpp/executors/multi_threaded_executor.hpp"
+#include "rclcpp/subscription_options.hpp"
+
 using std::placeholders::_1;
 using std::placeholders::_2;
+using namespace std::chrono_literals;
 
 class PatrolWithService : public rclcpp::Node {
    public:
     PatrolWithService() : Node("patrol_with_service_node"), direction_("") {
+        // Create callback groups for handling subscriptions and timers
+        scan_sub_group_ = this->create_callback_group(
+            rclcpp::CallbackGroupType::MutuallyExclusive);
+        timer_group_ = this->create_callback_group(
+            rclcpp::CallbackGroupType::MutuallyExclusive);
+
+        // Create a subscription to laser scan data with specified callback group
+        rclcpp::SubscriptionOptions scan_sub_options_;
+        scan_sub_options_.callback_group = scan_sub_group_;
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/fastbot_1/scan", 10,
-            std::bind(&PatrolWithService::laser_scan_callback, this, _1));
+            std::bind(&PatrolWithService::laser_scan_callback, this, _1),
+            scan_sub_options_);
 
         cmd_vel_publisher_ =
             this->create_publisher<geometry_msgs::msg::Twist>("/fastbot_1/cmd_vel", 10);
 
         control_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),
-            std::bind(&PatrolWithService::control_loop, this));
+            100ms, std::bind(&PatrolWithService::control_loop, this), timer_group_);
 
         std::string name_service = "/direction_service";
         client_ = this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
@@ -87,6 +100,8 @@ class PatrolWithService : public rclcpp::Node {
         cmd_vel_publisher_->publish(msg);
     }
 
+    rclcpp::CallbackGroup::SharedPtr scan_sub_group_;
+    rclcpp::CallbackGroup::SharedPtr timer_group_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
     rclcpp::TimerBase::SharedPtr control_timer_;
@@ -112,7 +127,15 @@ int main(int argc, char* argv[]) {
     // Register signal handler for Ctrl+C
     signal(SIGINT, signal_handler);
 
-    rclcpp::spin(patrol_node);
+    // Create a multi-threaded executor
+    rclcpp::executors::MultiThreadedExecutor executor;
+
+    // Add the Patrol node to the executor
+    executor.add_node(patrol_node);
+
+    // Spin the executor to handle callbacks
+    executor.spin();
+
     rclcpp::shutdown();
     return 0;
 }
