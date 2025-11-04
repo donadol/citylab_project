@@ -1,7 +1,7 @@
 #include <chrono>
 #include <geometry_msgs/msg/twist.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <robot_patrol_msg/srv/get_direction.hpp>
+#include <robot_patrol/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
 #include "rclcpp/executors/multi_threaded_executor.hpp"
@@ -35,7 +35,7 @@ class PatrolWithService : public rclcpp::Node {
             100ms, std::bind(&PatrolWithService::control_loop, this), timer_group_);
 
         std::string name_service = "/direction_service";
-        client_ = this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
+        client_ = this->create_client<robot_patrol::srv::GetDirection>(name_service);
 
         // Wait for the service to be available (checks every second)
         while (!client_->wait_for_service(1s)) {
@@ -61,13 +61,13 @@ class PatrolWithService : public rclcpp::Node {
 
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        auto request = std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
+        auto request = std::make_shared<robot_patrol::srv::GetDirection::Request>();
         request->laser_data = *msg;
 
         // Send the request asynchronously
         auto result = client_->async_send_request(
             request,
-            [this](rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedFuture
+            [this](rclcpp::Client<robot_patrol::srv::GetDirection>::SharedFuture
                        future_response) {
                 auto response = future_response.get();
                 RCLCPP_INFO(this->get_logger(), "Direction: %s",
@@ -105,7 +105,7 @@ class PatrolWithService : public rclcpp::Node {
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
     rclcpp::TimerBase::SharedPtr control_timer_;
-    rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedPtr client_;
+    rclcpp::Client<robot_patrol::srv::GetDirection>::SharedPtr client_;
     std::string direction_;
 };
 
