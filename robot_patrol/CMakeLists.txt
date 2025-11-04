@@ -15,6 +15,12 @@ find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/GetDirection.srv"
+  "action/GoToPose.action"
+   DEPENDENCIES sensor_msgs geometry_msgs
+)
+
 add_executable(patrol_executable src/patrol.cpp)
 ament_target_dependencies(patrol_executable
   rclcpp
@@ -52,6 +58,12 @@ ament_target_dependencies(go_to_pose_action
   tf2_geometry_msgs
 )
 
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(direction_service "${cpp_typesupport_target}")
+target_link_libraries(patrol_with_service_executable "${cpp_typesupport_target}")
+target_link_libraries(test_service "${cpp_typesupport_target}")
+target_link_libraries(go_to_pose_action "${cpp_typesupport_target}")
+
 install(TARGETS
   patrol_executable
   direction_service
@@ -84,11 +96,5 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
-
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "srv/GetDirection.srv"
-  "action/GoToPose.action"
-   DEPENDENCIES sensor_msgs geometry_msgs
-)
 
 ament_package()

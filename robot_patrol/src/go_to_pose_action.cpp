@@ -66,7 +66,10 @@ class GoToPose : public rclcpp::Node {
         tf2::Quaternion q(
             msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
             msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
-        current_pos_.theta = tf2::getYaw(q);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+        current_pos_.theta = yaw;
     }
 
     // Handle incoming goal requests
@@ -105,33 +108,29 @@ class GoToPose : public rclcpp::Node {
 
         // Store the desired position and activate goal
         desired_pos_ = goal->goal_pos;
-        // Convert theta to rad
+        // Convert theta from degrees to radians
         desired_pos_.theta = goal->goal_pos.theta * M_PI / 180.0;
         goal_active_ = true;
-        active_goal_handle_ = goal_handle;
 
         RCLCPP_INFO(this->get_logger(),
-                    "Goal position set: x=%.2f, y=%.2f, theta=%.2f", desired_pos_.x,
-                    desired_pos_.y, desired_pos_.theta);
+                    "Goal position set: x=%.2f, y=%.2f, theta=%.2f rad",
+                    desired_pos_.x, desired_pos_.y, desired_pos_.theta);
 
-        // Position tolerance (meters) and orientation tolerance (radians)
-        const double position_tolerance = 0.1;  // 10 cm
-        const double orientation_tolerance = 0.1;
+        // Tolerances
+        const double position_tolerance = 0.1;     // 10 cm
+        const double orientation_tolerance = 0.1;  // ~5.7 degrees
 
         // Publish feedback every 1 second
-        rclcpp::Rate loop_rate(1);  // 1 Hz for feedback
+        rclcpp::Rate loop_rate(1);
 
         while (rclcpp::ok() && goal_active_) {
-            // Check if there is a cancel request
+            // Handle cancellation
             if (goal_handle->is_canceling()) {
+                stop_robot();
                 result->status = false;
                 goal_handle->canceled(result);
                 goal_active_ = false;
                 RCLCPP_INFO(this->get_logger(), "Goal canceled");
-
-                // Stop the robot
-                auto stop_msg = geometry_msgs::msg::Twist();
-                cmd_vel_publisher_->publish(stop_msg);
                 return;
             }
 
@@ -141,34 +140,26 @@ class GoToPose : public rclcpp::Node {
             double distance = std::sqrt(dx * dx + dy * dy);
 
             // Calculate orientation error
-            double orientation_error = desired_pos_.theta - current_pos_.theta;
-            // Normalize to [-pi, pi]
-            while (orientation_error > M_PI)
-                orientation_error -= 2.0 * M_PI;
-            while (orientation_error < -M_PI)
-                orientation_error += 2.0 * M_PI;
+            double orientation_error = normalize_angle(
+                desired_pos_.theta - current_pos_.theta);
 
-            // Publish feedback with current position every second
+            // Publish feedback
             feedback->current_pos = current_pos_;
             goal_handle->publish_feedback(feedback);
 
             RCLCPP_INFO(this->get_logger(),
                         "Feedback - Current: [%.2f, %.2f, %.2f], Distance: %.2f m, "
-                        "orientation error: %.2f rad",
-                        current_pos_.x, current_pos_.y, current_pos_.theta, distance,
-                        orientation_error);
+                        "Orientation error: %.2f rad",
+                        current_pos_.x, current_pos_.y, current_pos_.theta,
+                        distance, orientation_error);
 
             // Check if goal is reached
             if (distance < position_tolerance &&
                 std::abs(orientation_error) < orientation_tolerance) {
+                stop_robot();
                 result->status = true;
                 goal_handle->succeed(result);
                 goal_active_ = false;
-
-                // Stop the robot
-                auto stop_msg = geometry_msgs::msg::Twist();
-                cmd_vel_publisher_->publish(stop_msg);
-
                 RCLCPP_INFO(this->get_logger(), "Action Completed");
                 return;
             }
@@ -178,45 +169,57 @@ class GoToPose : public rclcpp::Node {
     }
 
     void control_loop() {
-        // Only execute control if a goal is active
+        // Return early if no active goal
         if (!goal_active_) {
             return;
         }
 
-        auto twist_msg = geometry_msgs::msg::Twist();
-
-        // 1. Get current position (current_pos_) - updated by odom callback
-        // 2. Get desired position (desired_pos_) - set by execute()
-        // 3. Compute the difference between the two
+        // Calculate distance to goal
         double dx = desired_pos_.x - current_pos_.x;
         double dy = desired_pos_.y - current_pos_.y;
+        double distance = std::sqrt(dx * dx + dy * dy);
 
-        // 4. This difference defines a vector with the direction we need to move
-        // Calculate the desired angle to reach the goal
+        const double position_tolerance = 0.1;  // 10 cm
+
+        // Phase 2: Rotate in place when close to goal
+        if (distance < position_tolerance) {
+            double orientation_error = normalize_angle(
+                desired_pos_.theta - current_pos_.theta);
+
+            publish_velocity(0.0, orientation_error);
+            RCLCPP_DEBUG(this->get_logger(),
+                         "Final rotation - orientation_error=%.2f", orientation_error);
+            return;
+        }
+
+        // Phase 1: Navigate to position
         double desired_angle = std::atan2(dy, dx);
+        double angle_diff = normalize_angle(desired_angle - current_pos_.theta);
 
-        // Calculate the difference between current orientation and desired angle
-        double angle_diff = desired_angle - current_pos_.theta;
-
-        // Normalize angle difference to [-pi, pi]
-        while (angle_diff > M_PI)
-            angle_diff -= 2.0 * M_PI;
-        while (angle_diff < -M_PI)
-            angle_diff += 2.0 * M_PI;
-
-        // 5. Convert the vector direction into angular speed (angular.z)
-        // Use proportional control: angular velocity proportional to angle error
-        twist_msg.angular.z = angle_diff;
-
-        // 6. Send the speed to /cmd_vel with fixed linear.x of 0.2 m/s
-        twist_msg.linear.x = 0.2;
-
-        // Publish the velocity command
-        cmd_vel_publisher_->publish(twist_msg);
-
+        publish_velocity(0.2, angle_diff);
         RCLCPP_DEBUG(this->get_logger(),
-                     "Control: dx=%.2f, dy=%.2f, desired_angle=%.2f, angle_diff=%.2f",
-                     dx, dy, desired_angle, angle_diff);
+                     "Moving to position - distance=%.2f, angle_diff=%.2f",
+                     distance, angle_diff);
+    }
+
+    // Helper method to normalize angles to [-pi, pi]
+    double normalize_angle(double angle) {
+        while (angle > M_PI) angle -= 2.0 * M_PI;
+        while (angle < -M_PI) angle += 2.0 * M_PI;
+        return angle;
+    }
+
+    // Helper method to publish velocity commands
+    void publish_velocity(double linear_x, double angular_z) {
+        auto twist_msg = geometry_msgs::msg::Twist();
+        twist_msg.linear.x = linear_x;
+        twist_msg.angular.z = angular_z;
+        cmd_vel_publisher_->publish(twist_msg);
+    }
+
+    // Helper method to stop the robot
+    void stop_robot() {
+        publish_velocity(0.0, 0.0);
     }
 };
 
@@ -224,7 +227,7 @@ int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<GoToPose>();
 
-    node.spin();
+    rclcpp::spin(node);
 
     rclcpp::shutdown();
     return 0;
