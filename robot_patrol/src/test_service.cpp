@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
-#include <robot_patrol_msg/srv/get_direction.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+
+#include "robot_patrol/srv/get_direction.hpp"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -14,7 +15,7 @@ class TestService : public rclcpp::Node {
 
         std::string name_service = "/direction_service";
         client_ =
-            this->create_client<robot_patrol_msg::srv::GetDirection>(name_service);
+            this->create_client<robot_patrol::srv::GetDirection>(name_service);
 
         // Wait for the service to be available (checks every second)
         while (!client_->wait_for_service(1s)) {
@@ -34,7 +35,7 @@ class TestService : public rclcpp::Node {
    private:
     void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         auto request =
-            std::make_shared<robot_patrol_msg::srv::GetDirection::Request>();
+            std::make_shared<robot_patrol::srv::GetDirection::Request>();
         request->laser_data = *msg;
 
         RCLCPP_INFO(this->get_logger(), "Service Request");
@@ -42,7 +43,7 @@ class TestService : public rclcpp::Node {
         // Send the request asynchronously
         auto result = client_->async_send_request(
             request,
-            [this](rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedFuture
+            [this](rclcpp::Client<robot_patrol::srv::GetDirection>::SharedFuture
                        future_response) {
                 auto response = future_response.get();
                 RCLCPP_INFO(this->get_logger(), "Service Response: %s",
@@ -51,7 +52,7 @@ class TestService : public rclcpp::Node {
     }
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
-    rclcpp::Client<robot_patrol_msg::srv::GetDirection>::SharedPtr client_;
+    rclcpp::Client<robot_patrol::srv::GetDirection>::SharedPtr client_;
 };
 
 int main(int argc, char* argv[]) {

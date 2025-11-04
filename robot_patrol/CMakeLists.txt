@@ -8,9 +8,18 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(robot_patrol_msg REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/GetDirection.srv"
+  "action/GoToPose.action"
+   DEPENDENCIES sensor_msgs geometry_msgs
+)
 
 add_executable(patrol_executable src/patrol.cpp)
 ament_target_dependencies(patrol_executable
@@ -24,14 +33,12 @@ ament_target_dependencies(direction_service
   rclcpp
   sensor_msgs
   geometry_msgs
-  robot_patrol_msg
 )
 
 add_executable(test_service src/test_service.cpp)
 ament_target_dependencies(test_service
   rclcpp
   sensor_msgs
-  robot_patrol_msg
 )
 
 add_executable(patrol_with_service_executable src/patrol_with_service.cpp)
@@ -39,14 +46,30 @@ ament_target_dependencies(patrol_with_service_executable
   rclcpp
   sensor_msgs
   geometry_msgs
-  robot_patrol_msg
 )
 
+add_executable(go_to_pose_action src/go_to_pose_action.cpp)
+ament_target_dependencies(go_to_pose_action
+  rclcpp
+  nav_msgs
+  sensor_msgs
+  geometry_msgs
+  tf2
+  tf2_geometry_msgs
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(direction_service "${cpp_typesupport_target}")
+target_link_libraries(patrol_with_service_executable "${cpp_typesupport_target}")
+target_link_libraries(test_service "${cpp_typesupport_target}")
+target_link_libraries(go_to_pose_action "${cpp_typesupport_target}")
+
 install(TARGETS
-	patrol_executable
-    direction_service
-    test_service
-    patrol_with_service_executable
+  patrol_executable
+  direction_service
+  test_service
+  patrol_with_service_executable
+  go_to_pose_action
 	DESTINATION lib/${PROJECT_NAME}
 )
 
