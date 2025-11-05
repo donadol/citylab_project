@@ -160,7 +160,7 @@ class GoToPose : public rclcpp::Node {
 
             // Check if goal is reached
             if (distance < POSITION_TOLERANCE &&
-                std::abs(orientation_error) < ORIENTATION_TOLERANCE) {
+                std::fabs(orientation_error) < ORIENTATION_TOLERANCE) {
                 stop_robot();
                 result->status = true;
                 goal_handle->succeed(result);
@@ -194,9 +194,9 @@ class GoToPose : public rclcpp::Node {
                 clamp_angular_velocity(ANGULAR_GAIN * orientation_error);
 
             publish_velocity(0.0, angular_vel);
-            RCLCPP_INFO(this->get_logger(),
-                        "Final rotation - orientation_error=%.2f, angular_vel=%.2f",
-                        orientation_error, angular_vel);
+            RCLCPP_DEBUG(this->get_logger(),
+                         "Final rotation - orientation_error=%.2f, angular_vel=%.2f",
+                         orientation_error, angular_vel);
             return;
         }
 
