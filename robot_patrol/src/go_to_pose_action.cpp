@@ -33,11 +33,11 @@ class GoToPose : public rclcpp::Node {
 
         // Subscribe to odometry to get the robot's current position
         odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/fastbot_1/odom", 10, std::bind(&GoToPose::odom_callback, this, _1));
+            "/odom", 10, std::bind(&GoToPose::odom_callback, this, _1));
 
         // Create publisher for velocity commands
-        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>(
-            "/fastbot_1/cmd_vel", 10);
+        cmd_vel_publisher_ =
+            this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
         // Create a timer for controlling the robot's movement (10 Hz)
         control_timer_ = this->create_wall_timer(
@@ -55,6 +55,15 @@ class GoToPose : public rclcpp::Node {
     geometry_msgs::msg::Pose2D desired_pos_;
     geometry_msgs::msg::Pose2D current_pos_;
     bool goal_active_ = false;
+
+    // Control parameters - tuned for real robot
+    const double LINEAR_VELOCITY = 0.1;       // m/s
+    const double ANGULAR_GAIN = 0.8;          // Proportional gain for rotation
+    const double MAX_ANGULAR_VELOCITY = 1.5;  // rad/s
+    const double MIN_ANGULAR_VELOCITY =
+        0.2;                                   // rad/s (minimum to overcome friction)
+    const double POSITION_TOLERANCE = 0.1;     // m (10 cm)
+    const double ORIENTATION_TOLERANCE = 0.1;  // rad (~5.7 degrees)
 
     // Callback for odometry - updates current robot position
     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -116,10 +125,6 @@ class GoToPose : public rclcpp::Node {
                     "Goal position set: x=%.2f, y=%.2f, theta=%.2f rad",
                     desired_pos_.x, desired_pos_.y, desired_pos_.theta);
 
-        // Tolerances
-        const double position_tolerance = 0.1;     // 10 cm
-        const double orientation_tolerance = 0.1;  // ~5.7 degrees
-
         // Publish feedback every 1 second
         rclcpp::Rate loop_rate(1);
 
@@ -140,8 +145,8 @@ class GoToPose : public rclcpp::Node {
             double distance = std::sqrt(dx * dx + dy * dy);
 
             // Calculate orientation error
-            double orientation_error = normalize_angle(
-                desired_pos_.theta - current_pos_.theta);
+            double orientation_error =
+                normalize_angle(desired_pos_.theta - current_pos_.theta);
 
             // Publish feedback
             feedback->current_pos = current_pos_;
@@ -150,12 +155,12 @@ class GoToPose : public rclcpp::Node {
             RCLCPP_INFO(this->get_logger(),
                         "Feedback - Current: [%.2f, %.2f, %.2f], Distance: %.2f m, "
                         "Orientation error: %.2f rad",
-                        current_pos_.x, current_pos_.y, current_pos_.theta,
-                        distance, orientation_error);
+                        current_pos_.x, current_pos_.y, current_pos_.theta, distance,
+                        orientation_error);
 
             // Check if goal is reached
-            if (distance < position_tolerance &&
-                std::abs(orientation_error) < orientation_tolerance) {
+            if (distance < POSITION_TOLERANCE &&
+                std::abs(orientation_error) < ORIENTATION_TOLERANCE) {
                 stop_robot();
                 result->status = true;
                 goal_handle->succeed(result);
@@ -179,16 +184,19 @@ class GoToPose : public rclcpp::Node {
         double dy = desired_pos_.y - current_pos_.y;
         double distance = std::sqrt(dx * dx + dy * dy);
 
-        const double position_tolerance = 0.1;  // 10 cm
-
         // Phase 2: Rotate in place when close to goal
-        if (distance < position_tolerance) {
-            double orientation_error = normalize_angle(
-                desired_pos_.theta - current_pos_.theta);
+        if (distance < POSITION_TOLERANCE) {
+            double orientation_error =
+                normalize_angle(desired_pos_.theta - current_pos_.theta);
 
-            publish_velocity(0.0, orientation_error);
-            RCLCPP_DEBUG(this->get_logger(),
-                         "Final rotation - orientation_error=%.2f", orientation_error);
+            // Apply gain and clamp angular velocity
+            double angular_vel =
+                clamp_angular_velocity(ANGULAR_GAIN * orientation_error);
+
+            publish_velocity(0.0, angular_vel);
+            RCLCPP_INFO(this->get_logger(),
+                        "Final rotation - orientation_error=%.2f, angular_vel=%.2f",
+                        orientation_error, angular_vel);
             return;
         }
 
@@ -196,7 +204,10 @@ class GoToPose : public rclcpp::Node {
         double desired_angle = std::atan2(dy, dx);
         double angle_diff = normalize_angle(desired_angle - current_pos_.theta);
 
-        publish_velocity(0.2, angle_diff);
+        // Apply gain and clamp angular velocity
+        double angular_vel = clamp_angular_velocity(ANGULAR_GAIN * angle_diff);
+
+        publish_velocity(LINEAR_VELOCITY, angular_vel);
         RCLCPP_DEBUG(this->get_logger(),
                      "Moving to position - distance=%.2f, angle_diff=%.2f",
                      distance, angle_diff);
@@ -204,9 +215,33 @@ class GoToPose : public rclcpp::Node {
 
     // Helper method to normalize angles to [-pi, pi]
     double normalize_angle(double angle) {
-        while (angle > M_PI) angle -= 2.0 * M_PI;
-        while (angle < -M_PI) angle += 2.0 * M_PI;
+        while (angle > M_PI)
+            angle -= 2.0 * M_PI;
+        while (angle < -M_PI)
+            angle += 2.0 * M_PI;
         return angle;
+    }
+
+    // Helper method to clamp angular velocity to safe limits and apply minimum
+    // threshold
+    double clamp_angular_velocity(double angular_vel) {
+        // Apply maximum limits
+        if (angular_vel > MAX_ANGULAR_VELOCITY) {
+            return MAX_ANGULAR_VELOCITY;
+        }
+        if (angular_vel < -MAX_ANGULAR_VELOCITY) {
+            return -MAX_ANGULAR_VELOCITY;
+        }
+
+        // Apply minimum threshold to overcome motor deadband
+        if (angular_vel > 0.0 && angular_vel < MIN_ANGULAR_VELOCITY) {
+            return MIN_ANGULAR_VELOCITY;
+        }
+        if (angular_vel < 0.0 && angular_vel > -MIN_ANGULAR_VELOCITY) {
+            return -MIN_ANGULAR_VELOCITY;
+        }
+
+        return angular_vel;
     }
 
     // Helper method to publish velocity commands
