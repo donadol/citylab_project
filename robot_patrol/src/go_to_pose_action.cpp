@@ -61,9 +61,9 @@ class GoToPose : public rclcpp::Node {
     const double ANGULAR_GAIN = 0.8;          // Proportional gain for rotation
     const double MAX_ANGULAR_VELOCITY = 1.5;  // rad/s
     const double MIN_ANGULAR_VELOCITY =
-        0.2;                                   // rad/s (minimum to overcome friction)
+        0.4;                                   // rad/s (minimum to overcome friction)
     const double POSITION_TOLERANCE = 0.1;     // m (10 cm)
-    const double ORIENTATION_TOLERANCE = 0.1;  // rad (~5.7 degrees)
+    const double ORIENTATION_TOLERANCE = 0.5;  // rad
 
     // Callback for odometry - updates current robot position
     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -125,8 +125,8 @@ class GoToPose : public rclcpp::Node {
                     "Goal position set: x=%.2f, y=%.2f, theta=%.2f rad",
                     desired_pos_.x, desired_pos_.y, desired_pos_.theta);
 
-        // Publish feedback every 1 second
-        rclcpp::Rate loop_rate(1);
+        // Publish feedback 10hz
+        rclcpp::Rate loop_rate(10);
 
         while (rclcpp::ok() && goal_active_) {
             // Handle cancellation
@@ -253,9 +253,7 @@ class GoToPose : public rclcpp::Node {
     }
 
     // Helper method to stop the robot
-    void stop_robot() {
-        publish_velocity(0.0, 0.0);
-    }
+    void stop_robot() { publish_velocity(0.0, 0.0); }
 };
 
 int main(int argc, char** argv) {
